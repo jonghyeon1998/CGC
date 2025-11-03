@@ -1,6 +1,7 @@
 import jax
 from jax import vmap
 import jax.numpy as jnp
+from jax.scipy.linalg import cho_factor, cho_solve, solve_triangular
 
 #Create Matern-2.5 kernel functions and derivatives
 
@@ -162,3 +163,59 @@ def K_duuzz(X,Y,params,reg=False,nugget=10**-5):
   if reg==True and size==size2:
     K_duuzz+=+nugget*jnp.eye(size)
   return K_duuzz
+
+def matrix_assembly(X,params):
+
+  #Constructs K(\phi,\phi)
+  size = len(X[:,0])
+  K = jnp.zeros((size+2,size+2))
+
+  K_u = K_du(X,X,params)
+  K_uu = K_duu(X,X,params)
+  K_uz = K_duz(X,X,params)
+  K_uzz = K_duzz(X,X,params)
+  K_uuz = K_duuz(X,X,params)
+  K_uuzz = K_duuzz(X,X,params)
+
+
+  K = K.at[1:size+1,1:size+1].set(nu**2*K_uuzz+nu/2*K_uuz+nu/2*K_uzz+1/4*K_uz)
+  K = K.at[0,0].set(kernel(0,0,params))
+  K = K.at[size+1,size+1].set(kernel(1,1,params))
+  K = K.at[0,size+1].set(kernel(0,1,params))
+  K = K.at[size+1,0].set(K[0,size+1])
+
+  K = K.at[1:size+1,0].set(nu*kernel_uu(X,jnp.zeros((size,1)),params)+1/2*kernel_u(X,jnp.zeros((size,1)),params))
+  K = K.at[0,1:size+1].set(K[1:size+1,0])
+  K = K.at[1:size+1,size+1].set(nu*kernel_uu(X,jnp.ones((size,1)),params)+1/2*kernel_u(X,jnp.ones((size,1)),params))
+  K = K.at[size+1,1:size+1].set(K[1:size+1,size+1])
+
+  return K
+
+#Computes vector K(u,\phi)
+def K_vector(X_test,X_train,params):
+  size=len(X_test[:,0])
+  size2 = len(X_train[:,0])
+
+  K_vector = jnp.zeros((size,size2+2))
+
+  X_test = X_test[:,0].reshape((size,1))
+  X_train = X_train[:,0].reshape((size2,1))
+
+  #K(u,\phi_i) where 2<=i<=N+1
+
+  K_vector = K_vector.at[:,1:size2+1].set(nu*K_dzz(X_test,X_train,params)+1/2*K_dz(X_test,X_train,params))
+
+  #K(u,\phi_1)
+  K_vector = K_vector.at[:,0].set(kernel(X_test,jnp.zeros((size,1)),params))
+
+  #K(u,\phi_{N+2})
+  K_vector = K_vector.at[:,size2+1].set(kernel(X_test,jnp.ones((size,1)),params))
+
+  return K_vector
+
+#Kernel regression for one dimension K(u,\phi)K(\phi,\phi)^-1 Y
+def kernel_regression(X_test, Y_train,params,K_matrix,X_train,nugget=10**-4):
+    t_matrix = K_vector(X_test,X_train,params)
+    size = len(K_matrix[:,0])
+    prediction = jnp.matmul(t_matrix,jnp.linalg.inv(K_matrix+nugget*jnp.eye(size))@Y_train)
+    return prediction
