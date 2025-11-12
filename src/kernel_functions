@@ -5,6 +5,8 @@ from jax.scipy.linalg import cho_factor, cho_solve, solve_triangular
 
 #Create Matern-2.5 kernel functions and derivatives
 
+
+
 def kernel_u(s,t,params):
   K = -5*(s-t)*jnp.exp(-jnp.sqrt(5)*jnp.abs(s-t)/params[0])*(params[0]+jnp.sqrt(5)*jnp.abs(s-t))/(3*params[0]**3)
   return K
