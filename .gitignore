@@ -1,0 +1,16 @@
+# Ignore virtual environments
+cgc/
+.cgc/
+
+# Common Python ignores
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+build/
+dist/
+
+# VSCode settings
+.vscode/
